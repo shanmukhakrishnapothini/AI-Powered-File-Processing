@@ -23,8 +23,6 @@ from langchain_google_genai import (
 
 load_dotenv()
 
-# -------------------- TEXT EXTRACTION -------------------- #
-
 def extract_text(file_bytes: bytes, filename: str) -> str:
     """
     Extract text from different file types (pdf, txt, docx).
@@ -112,17 +110,14 @@ def rag_pipeline(document_text: str) -> Dict[str, Any]:
             "sentiment": "neutral",
         }
 
-    # 2) Build vector store (FAISS in-memory)
     vector_store = FAISS.from_texts(chunks, embedding=embeddings)
 
-    # 3) Retrieve relevant chunks
     retriever = vector_store.as_retriever(search_kwargs={"k": 4})
     retrieved_docs = retriever.invoke(
         "Summarize and analyze this document"
     )
     retrieved_text = "\n\n".join(doc.page_content for doc in retrieved_docs)
 
-    # 4) Ask Gemini using retrieved context only
     prompt = f"""
 You are an AI assistant. Using ONLY the retrieved context below, return a valid JSON
 with the following format:
@@ -145,11 +140,9 @@ Retrieved context:
     response = llm.invoke(prompt)
     raw_text = response.content.strip()
 
-    # 5) Parse JSON safely
     try:
         data = json.loads(raw_text)
     except json.JSONDecodeError:
-        # fallback when model doesn't strictly follow instructions
         data = {
             "summary": raw_text[:500],
             "insights": ["Model returned non-JSON output"],
