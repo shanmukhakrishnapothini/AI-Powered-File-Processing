@@ -1,19 +1,29 @@
 # backend/ai_utils.py
 
 import io
-import json
 import os
-from typing import Dict, Any
+import json
+from typing import Dict, Any, List
 
 from pypdf import PdfReader
 import docx
-
 from dotenv import load_dotenv
 
+# LangChain + Gemini
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_ollama import OllamaEmbeddings
+
+
+from langchain_openai import ChatOpenAI
+from langchain_google_genai import (
+    GoogleGenerativeAIEmbeddings,
+    ChatGoogleGenerativeAI,
+)
+
 load_dotenv()
-import google.generativeai as genai
 
-
+# -------------------- TEXT EXTRACTION -------------------- #
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
     """
@@ -48,65 +58,105 @@ def _extract_docx_text(file_bytes: bytes) -> str:
     return "\n".join([p.text for p in doc.paragraphs])
 
 
+# -------------------- RAG SETUP (LangChain + Gemini) -------------------- #
 
-# Configure Gemini once
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    MODEL = genai.GenerativeModel("gemini-1.5-flash")
-else:
-    MODEL = None
+
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY not set in environment")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY not set in environment")
+
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.3,
+    api_key=OPENAI_API_KEY
+)
 
 
-def call_gemini_for_analysis(text: str) -> Dict[str, Any]:
-    """
-    Calls Gemini and returns a dict with:
-    - summary (string)
-    - insights (list)
-    - topics (list)
-    - sentiment (string)
-    """
+# LLM for generation
+# llm = ChatGoogleGenerativeAI(
+#     model="gemini-1.0-pro",
+#     temperature=0.3,
+#     google_api_key=GEMINI_API_KEY
+# )
 
-    if not MODEL:
-        # Fallback so the app still runs without API key
+# ✅ Embeddings using API key (NOT Google Cloud ADC)
+# embeddings = GoogleGenerativeAIEmbeddings(
+#     model="models/embedding-001",
+#     google_api_key=GEMINI_API_KEY
+# )
+
+embeddings=OllamaEmbeddings(
+    model="mxbai-embed-large"
+)
+
+
+def rag_pipeline(document_text: str) -> Dict[str, Any]:
+   
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=150,
+    )
+    chunks: List[str] = splitter.split_text(document_text)
+    print(f"Total Chunks Created: {len(chunks)}")
+
+    if not chunks:
         return {
-            "summary": "Gemini API key not configured.",
-            "insights": ["No insights generated."],
-            "topics": ["N/A"],
-            "sentiment": "neutral",
-        }
-
-    prompt = f"""
-You are an AI assistant. Analyze the following document text and return ONLY a JSON object
-with the following keys:
-
-- "summary": short summary as string
-- "insights": list of 3–7 key insights
-- "topics": list of topics
-- "sentiment": one of ["positive", "neutral", "negative"]
-
-Respond with ONLY valid JSON. No explanations, no markdown.
-
-Text:
-{text[:15000]}
-    """
-
-    response = MODEL.generate_content(prompt)
-    raw_text = response.text.strip()
-
-    # Try to parse as JSON directly
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError:
-        # Very basic fallback: wrap in a simple structure
-        data = {
-            "summary": raw_text[:500],
-            "insights": ["Model did not return valid JSON."],
+            "summary": "No content available.",
+            "insights": [],
             "topics": [],
             "sentiment": "neutral",
         }
 
-    # Ensure all keys exist
+    # 2) Build vector store (FAISS in-memory)
+    vector_store = FAISS.from_texts(chunks, embedding=embeddings)
+
+    # 3) Retrieve relevant chunks
+    retriever = vector_store.as_retriever(search_kwargs={"k": 4})
+    retrieved_docs = retriever.invoke(
+        "Summarize and analyze this document"
+    )
+    retrieved_text = "\n\n".join(doc.page_content for doc in retrieved_docs)
+
+    # 4) Ask Gemini using retrieved context only
+    prompt = f"""
+You are an AI assistant. Using ONLY the retrieved context below, return a valid JSON
+with the following format:
+
+{{
+  "summary": "...",
+  "insights": ["...", "..."],
+  "topics": ["...", "..."],
+  "sentiment": "positive" | "neutral" | "negative"
+}}
+
+Do NOT add explanations.
+Do NOT wrap in markdown.
+Do NOT add extra keys.
+
+Retrieved context:
+{retrieved_text}
+    """
+
+    response = llm.invoke(prompt)
+    raw_text = response.content.strip()
+
+    # 5) Parse JSON safely
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # fallback when model doesn't strictly follow instructions
+        data = {
+            "summary": raw_text[:500],
+            "insights": ["Model returned non-JSON output"],
+            "topics": [],
+            "sentiment": "neutral",
+        }
+
     return {
         "summary": data.get("summary", ""),
         "insights": data.get("insights", []),
