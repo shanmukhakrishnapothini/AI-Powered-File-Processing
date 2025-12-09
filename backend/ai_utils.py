@@ -48,10 +48,10 @@ def _extract_docx_text(file_bytes: bytes) -> str:
     doc = docx.Document(doc_stream)
     return "\n".join([p.text for p in doc.paragraphs])
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY not set in environment")
+# if not GEMINI_API_KEY:
+#     raise RuntimeError("GEMINI_API_KEY not set in environment")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 

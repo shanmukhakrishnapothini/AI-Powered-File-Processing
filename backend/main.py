@@ -16,28 +16,21 @@ load_dotenv()
 
 
 AWS_REGION = os.getenv("AWS_REGION")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-
-if not AWS_REGION or not S3_BUCKET_NAME:
-    raise RuntimeError("AWS_REGION and S3_BUCKET_NAME must be set in .env")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")#need to change the aws-region and s3_bucketname in .env
 
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
-
 MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "ai_file_processor")
-
-if not MONGO_URI:
-    raise RuntimeError("MONGO_URI must be set in .env")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")##need to change the mongodb name in.env
 
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client[MONGO_DB_NAME]
 
 files_collection = db["files"]
-results_collection = db["results"]
+results_collection = db["results"]#2 collections files and results
 
 
-app = FastAPI(title="AI File Processor with MongoDB")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -131,7 +124,7 @@ def process_file(file_id: str):
     try:
         obj = s3.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
         file_bytes = obj["Body"].read()
-        print("✅ Downloaded bytes:", len(file_bytes))
+        print("Downloaded bytes:", len(file_bytes))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"S3 download failed: {e}")
 

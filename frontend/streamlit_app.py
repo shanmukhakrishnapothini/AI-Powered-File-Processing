@@ -26,7 +26,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📄 AI File Processor")
+st.title("AI File Processor")
 
 if "mode" not in st.session_state:
     st.session_state.mode = None   # upload or extract
@@ -34,17 +34,17 @@ if "mode" not in st.session_state:
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("⬆️ Upload File", use_container_width=True):
+    if st.button("Upload File", use_container_width=True):
         st.session_state.mode = "upload"
 
 with col2:
-    if st.button("🤖 Extract From File", use_container_width=True):
+    if st.button("Extract From File", use_container_width=True):
         st.session_state.mode = "extract"
 
 st.divider()
 
 if st.session_state.mode == "upload":
-    st.markdown("<div class='section-title'>⬆️ Upload File</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Upload File</div>", unsafe_allow_html=True)
     st.markdown("<p class='small-label'>Choose a file and upload it. You will receive a File ID.</p>", unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader("Choose a file", type=["pdf", "txt", "docx"])
@@ -55,19 +55,20 @@ if st.session_state.mode == "upload":
 
             with st.spinner("Uploading file..."):
                 res = requests.post(f"{API_BASE}/upload", files=files)
+                print(res)
 
             if res.status_code == 200:
                 resp_json = res.json()
                 file_id = resp_json["file_id"]
-                st.success("✅ File uploaded successfully!")
-                st.info(f"📌 Your File ID(save it for later): `{file_id}`")
+                st.success("File uploaded successfully!")
+                st.info(f"Your File ID(save it for later): `{file_id}`")
             else:
-                st.error(f"❌ Upload failed: {res.text}")
+                st.error(f"Upload failed: {res.text}")
         else:
-            st.warning("⚠️ Please select a file first.")
+            st.warning("Please select a file first.")
 
 elif st.session_state.mode == "extract":
-    st.markdown("<div class='section-title'>🤖 Extract & Analyze</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Extract & Analyze</div>", unsafe_allow_html=True)
     st.markdown("<p class='small-label'>Enter your File ID to extract and analyze.</p>", unsafe_allow_html=True)
 
     file_id_input = st.text_input("Enter File ID", placeholder="Paste your File ID here")
@@ -76,11 +77,12 @@ elif st.session_state.mode == "extract":
         if file_id_input.strip():
             with st.spinner("Processing file and calling Gemini..."):
                 res = requests.post(f"{API_BASE}/process/{file_id_input.strip()}")
+                print(res)
 
             if res.status_code == 200:
                 data = res.json()
-                st.success("✅ AI Analysis Completed!")
-                st.subheader("🧠 AI Output")
+                st.success("AI Analysis Completed!")
+                st.subheader("AI Output")
                 st.json(data)
             else:
                 try:
@@ -89,4 +91,4 @@ elif st.session_state.mode == "extract":
                     msg = res.text
                 st.error(f"❌ Error: {msg}")
         else:
-            st.warning("⚠️ Please enter a valid File ID.")
+            st.warning("Please enter a valid File ID.")
