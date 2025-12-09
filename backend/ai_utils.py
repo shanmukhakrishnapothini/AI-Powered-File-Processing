@@ -1,25 +1,18 @@
-# backend/ai_utils.py
-
 import io
 import os
 import json
 from typing import Dict, Any, List
-
 from pypdf import PdfReader
 import docx
 from dotenv import load_dotenv
-
-# LangChain + Gemini
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings
-
-
 from langchain_openai import ChatOpenAI
-from langchain_google_genai import (
-    GoogleGenerativeAIEmbeddings,
-    ChatGoogleGenerativeAI,
-)
+# from langchain_google_genai import (
+#     GoogleGenerativeAIEmbeddings,
+#     ChatGoogleGenerativeAI,
+# )
 
 load_dotenv()
 
@@ -54,9 +47,6 @@ def _extract_docx_text(file_bytes: bytes) -> str:
     doc_stream = io.BytesIO(file_bytes)
     doc = docx.Document(doc_stream)
     return "\n".join([p.text for p in doc.paragraphs])
-
-
-# -------------------- RAG SETUP (LangChain + Gemini) -------------------- #
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
