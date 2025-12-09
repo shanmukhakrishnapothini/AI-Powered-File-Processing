@@ -94,12 +94,27 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/download/{file_id}", response_model=DownloadResponse)
 def download_file(file_id: str):
+
     item = files_collection.find_one({"file_id": file_id})
 
     if not item:
         raise HTTPException(status_code=404, detail="File not found")
 
-    return DownloadResponse(file_id=file_id, download_url=item["s3_url"])
+    s3_key = item["s3_key"]
+
+    try:
+        presigned_url = s3.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": S3_BUCKET_NAME,
+                "Key": s3_key
+            },
+            ExpiresIn=60
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Presigned URL failed: {e}")
+
+    return DownloadResponse(file_id=file_id, download_url=presigned_url)
 
 
 @app.post("/process/{file_id}")
